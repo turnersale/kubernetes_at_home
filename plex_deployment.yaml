@@ -1,0 +1,244 @@
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: local
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: WaitForFirstConsumer
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: plex-media-config
+  labels:
+    directory: plex-config
+spec:
+  capacity:
+    storage: 20G
+  accessModes:
+  - ReadWriteMany
+  persistentVolumeReclaimPolicy: Delete
+  storageClassName: local
+  local:
+    path: /media/2tb/plex/config
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: kubernetes.io/hostname
+          operator: In
+          values:
+          - k3smaster
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: plex-media-config-claim
+spec:
+  storageClassName: local
+  accessModes:
+  - ReadWriteMany
+  resources:
+    requests:
+      storage: 20G
+  selector:
+    matchLabels:
+      directory: plex-config
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: local
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: WaitForFirstConsumer
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: plex-media-movies
+  labels:
+    directory: plex-movies
+spec:
+  capacity:
+    storage: 700G
+  accessModes:
+  - ReadWriteMany
+  persistentVolumeReclaimPolicy: Delete
+  storageClassName: local
+  local:
+    path: /media/2tb/plex/Movies
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: kubernetes.io/hostname
+          operator: In
+          values:
+          - <nodeName>
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: plex-media-movies-claim
+spec:
+  storageClassName: local
+  accessModes:
+  - ReadWriteMany
+  resources:
+    requests:
+      storage: 700G
+  selector:
+    matchLabels:
+      directory: plex-movies
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: plex-media-tv
+  labels:
+    directory: plex-tv
+spec:
+  capacity:
+    storage: 700G
+  accessModes:
+  - ReadWriteMany
+  persistentVolumeReclaimPolicy: Delete
+  storageClassName: local
+  local:
+    path: /media/2tb/plex/TV
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: kubernetes.io/hostname
+          operator: In
+          values:
+          - <nodeName>
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: plex-media-tv-claim
+spec:
+  storageClassName: local
+  accessModes:
+  - ReadWriteMany
+  resources:
+    requests:
+      storage: 700G
+  selector:
+    matchLabels:
+      directory: plex-tv
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: plex-media-photos
+  labels:
+    directory: plex-photos
+spec:
+  capacity:
+    storage: 300G
+  accessModes:
+  - ReadWriteMany
+  persistentVolumeReclaimPolicy: Delete
+  storageClassName: local
+  local:
+    path: /media/2tb/plex/Photos
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: kubernetes.io/hostname
+          operator: In
+          values:
+          - <nodeName>
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: plex-media-photos-claim
+spec:
+  storageClassName: local
+  accessModes:
+  - ReadWriteMany
+  resources:
+    requests:
+      storage: 300G
+  selector:
+    matchLabels:
+      directory: plex-photos
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: plexmediaserver
+  labels:
+    app: plexmediaserver
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: plexmediaserver
+  template:
+    metadata:
+      labels:
+        app: plexmediaserver
+        name: plexmediaserver
+    spec:
+      containers:
+      - name: plexmediaserver
+        image: linuxserver/plex:latest
+        imagePullPolicy: Always
+        ports:
+          - name: pms
+            containerPort: 32400
+          - name: http
+            containerPort: 32400
+          - name: https
+            containerPort: 32443
+        volumeMounts:
+        - name: plex-media-config
+          mountPath: "/config"
+        - name: plex-media-movies
+          mountPath: "/movies"
+        - name: plex-media-tv
+          mountPath: "/tv"
+        - name: plex-media-photos
+          mountPath: "/photos"
+      volumes:
+      - name: plex-media-config
+        persistentVolumeClaim:
+          claimName: plex-media-config-claim
+      - name: plex-media-movies
+        persistentVolumeClaim:
+          claimName: plex-media-movies-claim
+      - name: plex-media-tv
+        persistentVolumeClaim:
+          claimName: plex-media-tv-claim
+      - name: plex-media-photos
+        persistentVolumeClaim:
+          claimName: plex-media-photos-claim
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: plexmediaserver
+spec:
+  selector:
+    app: plexmediaserver
+  ports:
+  - port: 32400
+    targetPort: 32400
+    protocol: TCP
+    name: plex-pms
+  - port: 32400
+    targetPort: 32400
+    protocol: TCP
+    name: plex-http
+  - port: 32443
+    targetPort: 32443
+    protocol: TCP
+    name: plex-https
+  externalIPs:
+  - <ipAddress>
